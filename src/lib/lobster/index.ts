@@ -268,7 +268,7 @@ export function geoPolygonToPostGIS(polygon: GeoPolygon): string {
  */
 export function postGISPointToGeo(wkt: string): GeoPoint | null {
   const match = wkt.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/i);
-  if (!match) return null;
+  if (!match || !match[1] || !match[2]) return null;
 
   return {
     type: 'Point',
