@@ -171,10 +171,10 @@ export interface PortfolioSummary {
 }
 
 export interface DashboardFilters {
-  legal_status?: LegalStatus[];
-  charter_category?: CharterCategory[];
-  min_confidence?: number;
-  search?: string;
+  legal_status?: LegalStatus[] | undefined;
+  charter_category?: CharterCategory[] | undefined;
+  min_confidence?: number | undefined;
+  search?: string | undefined;
 }
 
 // =============================================================================
