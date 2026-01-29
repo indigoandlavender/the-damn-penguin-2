@@ -52,11 +52,11 @@ const nextConfig: NextConfig = {
   // Enable React strict mode
   reactStrictMode: true,
 
-  // Experimental features for Next.js 15
-  experimental: {
-    // Enable typed routes
-    typedRoutes: true,
-  },
+  // Enable typed routes (moved from experimental in Next.js 16)
+  typedRoutes: true,
+
+  // Enable Turbopack (required when plugins add webpack config)
+  turbopack: {},
 
   // Image optimization
   images: {
