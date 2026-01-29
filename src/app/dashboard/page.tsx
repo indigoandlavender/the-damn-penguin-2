@@ -1,389 +1,266 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { Suspense } from 'react';
+'use client'
 
-import { VerificationBadge } from '@/components/verification-badge';
-import type {
-  LegalStatus,
-  CharterCategory,
-  PortfolioSummary,
-  Property,
-  DashboardFilters,
-} from '@/types';
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
-// =============================================================================
-// METADATA
-// =============================================================================
-
-export const metadata: Metadata = {
-  title: 'Dashboard',
-  description: 'Portfolio overview with legal status filtering',
-};
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-interface DashboardPageProps {
-  searchParams: Promise<{
-    status?: LegalStatus | LegalStatus[];
-    category?: CharterCategory | CharterCategory[];
-    q?: string;
-  }>;
+type Property = {
+  id: string
+  city: string
+  neighborhood: string | null
+  property_type: string | null
+  reference: string | null
+  legal_status: string
+  confidence_score: number
+  value_mad: number | null
+  net_cost_mad: number | null
+  charter_pct: number
 }
 
-// =============================================================================
-// DATA FETCHING (Placeholder - Connect to Supabase)
-// =============================================================================
-
-async function getPortfolioSummary(): Promise<PortfolioSummary> {
-  // TODO: Replace with Supabase query
-  return {
-    total_properties: 0,
-    total_value_mad: 0,
-    by_legal_status: {
-      Titled: 0,
-      'In-Process': 0,
-      Melkia: 0,
-    },
-    by_charter_category: {
-      A: 0,
-      B: 0,
-      C: 0,
-    },
-    average_legal_confidence: 0,
-    total_potential_cashback_mad: 0,
-  };
+function formatMAD(n: number) {
+  return new Intl.NumberFormat('fr-MA').format(n)
 }
 
-async function getProperties(_filters: DashboardFilters): Promise<Property[]> {
-  // TODO: Replace with Supabase query with PostGIS
-  return [];
-}
+export default function Dashboard() {
+  const [properties, setProperties] = useState<Property[]>([])
+  const [loading, setLoading] = useState(true)
 
-// =============================================================================
-// COMPONENTS
-// =============================================================================
+  useEffect(() => {
+    async function fetchProperties() {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-function StatCard({
-  label,
-  value,
-  subvalue,
-  trend,
-}: {
-  label: string;
-  value: string | number;
-  subvalue?: string;
-  trend?: 'up' | 'down' | 'neutral';
-}) {
-  return (
-    <div className="card">
-      <div className="card-body">
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-          {label}
-        </p>
-        <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-        {subvalue && (
-          <p
-            className={`mt-1 text-sm ${
-              trend === 'up'
-                ? 'text-emerald-600'
-                : trend === 'down'
-                  ? 'text-rose-600'
-                  : 'text-slate-500'
-            }`}
-          >
-            {subvalue}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
+      if (error) {
+        console.error('Error fetching properties:', error)
+      } else {
+        setProperties(data || [])
+      }
+      setLoading(false)
+    }
 
-function LegalStatusFilter({ activeStatuses }: { activeStatuses: LegalStatus[] }) {
-  const statuses: LegalStatus[] = ['Titled', 'In-Process', 'Melkia'];
+    fetchProperties()
+  }, [])
+
+  const totalValue = properties.reduce((sum, p) => sum + (p.value_mad || 0), 0)
+  const totalNet = properties.reduce((sum, p) => sum + (p.net_cost_mad || 0), 0)
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {statuses.map((status) => {
-        const isActive = activeStatuses.includes(status);
-        return (
-          <Link
-            key={status}
-            href={`/dashboard?status=${status}`}
-            className={`
-              rounded-full px-4 py-2 text-sm font-medium transition-colors
-              ${
-                isActive
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }
-            `}
+    <main className="min-h-screen bg-white text-black">
+      
+      {/* Nav */}
+      <nav className="flex items-center justify-between" style={{ padding: '40px 120px' }}>
+        <Link href="/" style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>
+          The Morocco Oracle
+        </Link>
+        <div className="flex items-center gap-12">
+          <Link 
+            href="/infrastructure" 
+            style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#999' }}
+            className="hover:text-black transition-colors"
           >
-            <VerificationBadge status={status} size="sm" showLabel />
+            Infrastructure
           </Link>
-        );
-      })}
-      <Link
-        href="/dashboard"
-        className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200"
-      >
-        Clear Filters
-      </Link>
-    </div>
-  );
-}
-
-function PropertyRow({ property }: { property: Property }) {
-  const identifier =
-    property.title_number ||
-    property.requisition_number ||
-    property.melkia_reference ||
-    'No Reference';
-
-  return (
-    <tr>
-      <td>
-        <Link
-          href={`/refinery/${property.id}`}
-          className="font-medium text-slate-900 hover:text-slate-700"
-        >
-          {identifier}
-        </Link>
-      </td>
-      <td>
-        <VerificationBadge
-          status={property.legal_status}
-          confidenceScore={property.legal_confidence_score}
-          size="sm"
-        />
-      </td>
-      <td className="mono-data">
-        {property.charter_category || '—'}
-      </td>
-      <td className="mono-data">
-        {property.estimated_cashback_pct
-          ? `${property.estimated_cashback_pct}%`
-          : '—'}
-      </td>
-      <td className="mono-data text-right">
-        {property.estimated_value_mad
-          ? new Intl.NumberFormat('fr-MA').format(property.estimated_value_mad)
-          : '—'}
-      </td>
-      <td className="text-right">
-        <Link
-          href={`/refinery/${property.id}`}
-          className="btn btn-secondary btn-sm"
-        >
-          View
-        </Link>
-      </td>
-    </tr>
-  );
-}
-
-function PropertiesTable({ properties }: { properties: Property[] }) {
-  if (properties.length === 0) {
-    return (
-      <div className="card">
-        <div className="card-body py-12 text-center">
-          <p className="text-slate-500">No properties found</p>
-          <Link href="/scout" className="btn btn-primary btn-md mt-4">
-            Start Scouting
+          <Link 
+            href="/heat" 
+            style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#999' }}
+            className="hover:text-black transition-colors"
+          >
+            Heat Map
+          </Link>
+          <Link 
+            href="/pipeline" 
+            style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#999' }}
+            className="hover:text-black transition-colors"
+          >
+            Pipeline
+          </Link>
+          <Link 
+            href="/dashboard" 
+            style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}
+          >
+            Portfolio
           </Link>
         </div>
-      </div>
-    );
-  }
+      </nav>
 
-  return (
-    <div className="card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Legal Status</th>
-              <th>Category</th>
-              <th>Cashback</th>
-              <th className="text-right">Value (MAD)</th>
-              <th className="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {properties.map((property) => (
-              <PropertyRow key={property.id} property={property} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+      {/* Rule */}
+      <div style={{ margin: '0 120px', height: 1, background: '#e5e5e5' }} />
 
-function LoadingSkeleton() {
-  return (
-    <div className="animate-pulse space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="card">
-            <div className="card-body">
-              <div className="h-3 w-20 rounded bg-slate-200" />
-              <div className="mt-2 h-8 w-32 rounded bg-slate-200" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="card">
-        <div className="card-body space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 rounded bg-slate-100" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// PAGE COMPONENT
-// =============================================================================
-
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const params = await searchParams;
-
-  // Parse filters from URL
-  const statusFilter = params.status
-    ? Array.isArray(params.status)
-      ? params.status
-      : [params.status]
-    : [];
-
-  const filters: DashboardFilters = {
-    legal_status: statusFilter.length > 0 ? statusFilter : undefined,
-    search: params.q,
-  };
-
-  // Fetch data
-  const [summary, properties] = await Promise.all([
-    getPortfolioSummary(),
-    getProperties(filters),
-  ]);
-
-  return (
-    <div className="min-h-screen bg-slate-50 safe-top safe-bottom">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-slate-900">
-                Portfolio Dashboard
-              </h1>
-              <p className="text-sm text-slate-500">
-                Morocco 2026 Investment Charter
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Link href="/scout" className="btn btn-secondary btn-md">
-                Scout Mode
-              </Link>
-            </div>
-          </div>
-        </div>
+      <header style={{ padding: '80px 120px 100px' }}>
+        <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#999' }}>
+          Investment Portfolio
+        </p>
+        <h1 style={{ 
+          fontSize: 'clamp(64px, 10vw, 140px)', 
+          fontWeight: 700, 
+          lineHeight: 0.85, 
+          letterSpacing: '-0.04em',
+          marginTop: 32
+        }}>
+          PROPERTY
+          <br />
+          INTELLIGENCE
+        </h1>
       </header>
 
-      {/* Main Content */}
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <Suspense fallback={<LoadingSkeleton />}>
-          {/* Summary Stats */}
-          <section className="mb-8">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                label="Total Properties"
-                value={summary.total_properties}
-              />
-              <StatCard
-                label="Portfolio Value"
-                value={`${(summary.total_value_mad / 1_000_000).toFixed(1)}M`}
-                subvalue="MAD"
-              />
-              <StatCard
-                label="Avg. Legal Confidence"
-                value={`${summary.average_legal_confidence.toFixed(0)}%`}
-              />
-              <StatCard
-                label="Potential Cashback"
-                value={`${(summary.total_potential_cashback_mad / 1_000_000).toFixed(2)}M`}
-                subvalue="MAD (2026 Charter)"
-              />
-            </div>
-          </section>
+      {/* Rule */}
+      <div style={{ margin: '0 120px', height: 1, background: '#e5e5e5' }} />
 
-          {/* Legal Status Breakdown */}
-          <section className="mb-8">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-              By Legal Status
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="card legal-titled">
-                <div className="card-body flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                    <span className="text-xl font-bold text-emerald-700">
-                      {summary.by_legal_status.Titled}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">Titled</p>
-                    <p className="text-sm text-slate-500">Titre Foncier</p>
-                  </div>
-                </div>
-              </div>
-              <div className="card legal-in-process">
-                <div className="card-body flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                    <span className="text-xl font-bold text-amber-700">
-                      {summary.by_legal_status['In-Process']}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">In Process</p>
-                    <p className="text-sm text-slate-500">Réquisition</p>
-                  </div>
-                </div>
-              </div>
-              <div className="card legal-melkia">
-                <div className="card-body flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
-                    <span className="text-xl font-bold text-rose-700">
-                      {summary.by_legal_status.Melkia}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">Melkia</p>
-                    <p className="text-sm text-slate-500">Traditional</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+      {/* Stats */}
+      <section className="grid grid-cols-2" style={{ padding: '80px 120px' }}>
+        <div>
+          <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#999' }}>
+            Portfolio Value
+          </p>
+          <p style={{ 
+            fontSize: 'clamp(36px, 5vw, 64px)', 
+            fontWeight: 700, 
+            letterSpacing: '-0.03em', 
+            marginTop: 20,
+            lineHeight: 1
+          }}>
+            {loading ? '...' : formatMAD(totalValue)}
+            <span style={{ fontSize: 16, fontWeight: 400, color: '#ccc', marginLeft: 12 }}>MAD</span>
+          </p>
+        </div>
+        <div>
+          <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#999' }}>
+            Net Acquisition
+          </p>
+          <p style={{ 
+            fontSize: 'clamp(36px, 5vw, 64px)', 
+            fontWeight: 700, 
+            letterSpacing: '-0.03em', 
+            marginTop: 20,
+            lineHeight: 1
+          }}>
+            {loading ? '...' : formatMAD(totalNet)}
+            <span style={{ fontSize: 16, fontWeight: 400, color: '#ccc', marginLeft: 12 }}>MAD</span>
+          </p>
+        </div>
+      </section>
 
-          {/* Filters */}
-          <section className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">
-              Filter Properties
-            </h2>
-            <LegalStatusFilter activeStatuses={statusFilter} />
-          </section>
+      {/* Rule */}
+      <div style={{ margin: '0 120px', height: 1, background: '#e5e5e5' }} />
 
-          {/* Properties Table */}
-          <section>
-            <PropertiesTable properties={properties} />
-          </section>
-        </Suspense>
+      {/* Count */}
+      <div style={{ padding: '40px 120px' }}>
+        <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#999' }}>
+          {loading ? '...' : `${properties.length} Properties`}
+        </p>
       </div>
-    </div>
-  );
+
+      {/* Rule */}
+      <div style={{ margin: '0 120px', height: 1, background: '#e5e5e5' }} />
+
+      {/* Property list */}
+      {loading ? (
+        <div style={{ padding: '80px 120px' }}>
+          <p style={{ fontSize: 14, color: '#999' }}>Loading...</p>
+        </div>
+      ) : properties.length === 0 ? (
+        <div style={{ padding: '80px 120px' }}>
+          <p style={{ fontSize: 14, color: '#999' }}>No properties yet.</p>
+        </div>
+      ) : (
+        properties.map((property, index) => (
+          <div key={property.id}>
+            <Link href={`/property/${property.id}`} className="block hover:bg-gray-50 transition-colors">
+              <article 
+                className="grid items-start"
+                style={{ 
+                  padding: '60px 120px',
+                  gridTemplateColumns: '60px 1fr 180px 180px 200px'
+                }}
+              >
+                {/* Index */}
+                <p style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#ccc' }}>
+                  {String(index + 1).padStart(2, '0')}
+                </p>
+
+                {/* Main */}
+                <div>
+                  <h2 style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                    {property.city}
+                  </h2>
+                  <p style={{ fontSize: 13, color: '#666', marginTop: 16 }}>
+                    {property.neighborhood} · {property.property_type}
+                  </p>
+                  <p style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#ccc', marginTop: 12 }}>
+                    {property.reference}
+                  </p>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ccc', marginBottom: 12 }}>
+                    Status
+                  </p>
+                  <p style={{ fontSize: 14 }}>
+                    {property.legal_status}
+                  </p>
+                  <div className="flex items-center gap-3" style={{ marginTop: 16 }}>
+                    <div style={{ width: 80, height: 3, background: '#f0f0f0' }}>
+                      <div style={{ width: `${property.confidence_score}%`, height: '100%', background: '#000' }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: '#ccc' }}>{property.confidence_score}%</span>
+                  </div>
+                </div>
+
+                {/* Value */}
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ccc', marginBottom: 12 }}>
+                    Value
+                  </p>
+                  <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                    {formatMAD(property.value_mad || 0)}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#ccc', marginTop: 4 }}>MAD</p>
+                </div>
+
+                {/* Net */}
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ccc', marginBottom: 12 }}>
+                    Net Acquisition
+                  </p>
+                  <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                    {formatMAD(property.net_cost_mad || 0)}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                    -{property.charter_pct}% charter
+                  </p>
+                </div>
+              </article>
+            </Link>
+
+            {/* Rule */}
+            <div style={{ margin: '0 120px', height: 1, background: '#f0f0f0' }} />
+          </div>
+        ))
+      )}
+
+      {/* Spacer */}
+      <div style={{ height: 120 }} />
+
+      {/* Footer */}
+      <footer 
+        className="flex items-center justify-between"
+        style={{ padding: '48px 120px', borderTop: '1px solid #f0f0f0' }}
+      >
+        <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ccc' }}>
+          © 2026 The Morocco Oracle
+        </p>
+        <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#ccc' }}>
+          Connected to Supabase
+        </p>
+      </footer>
+
+      {/* Bottom breathing */}
+      <div style={{ height: 60 }} />
+
+    </main>
+  )
 }
