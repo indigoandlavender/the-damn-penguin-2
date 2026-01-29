@@ -163,7 +163,7 @@ export function createGeoPolygon(
  */
 export function calculatePolygonArea(polygon: GeoPolygon): number {
   const ring = polygon.coordinates[0];
-  if (ring.length < 4) return 0;
+  if (!ring || ring.length < 4) return 0;
 
   // Approximate meters per degree at Morocco's latitude (~32°N)
   const metersPerDegreeLat = 111132;
@@ -191,9 +191,15 @@ export function calculatePolygonArea(polygon: GeoPolygon): number {
  */
 export function calculateCentroid(polygon: GeoPolygon): GeoPoint {
   const ring = polygon.coordinates[0];
+  if (!ring || ring.length === 0) {
+    return { type: 'Point', coordinates: [0, 0] };
+  }
   let sumLng = 0;
   let sumLat = 0;
   const n = ring.length - 1; // Exclude closing point
+  if (n <= 0) {
+    return { type: 'Point', coordinates: [0, 0] };
+  }
 
   for (let i = 0; i < n; i++) {
     sumLng += ring[i][0];
@@ -213,6 +219,9 @@ export function calculateBoundingBox(
   polygon: GeoPolygon
 ): { minLng: number; maxLng: number; minLat: number; maxLat: number } {
   const ring = polygon.coordinates[0];
+  if (!ring || ring.length === 0) {
+    return { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 };
+  }
 
   let minLng = Infinity;
   let maxLng = -Infinity;
