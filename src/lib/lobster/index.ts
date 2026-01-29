@@ -147,7 +147,7 @@ export function createGeoPolygon(
   const first = ring[0];
   const last = ring[ring.length - 1];
 
-  if (first[0] !== last[0] || first[1] !== last[1]) {
+  if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
     ring.push(first);
   }
 
