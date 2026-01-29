@@ -171,8 +171,10 @@ export function calculatePolygonArea(polygon: GeoPolygon): number {
 
   let area = 0;
   for (let i = 0; i < ring.length - 1; i++) {
-    const [x1, y1] = ring[i];
-    const [x2, y2] = ring[i + 1];
+    const p1 = ring[i]!;
+    const p2 = ring[i + 1]!;
+    const [x1, y1] = p1;
+    const [x2, y2] = p2;
 
     // Convert to meters
     const x1m = x1 * metersPerDegreeLng;
@@ -202,8 +204,9 @@ export function calculateCentroid(polygon: GeoPolygon): GeoPoint {
   }
 
   for (let i = 0; i < n; i++) {
-    sumLng += ring[i][0];
-    sumLat += ring[i][1];
+    const coord = ring[i]!;
+    sumLng += coord[0];
+    sumLat += coord[1];
   }
 
   return {
